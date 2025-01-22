@@ -1,0 +1,6 @@
+pymilvus
+openai
+requests
+tqdm
+python-dotenv
+
