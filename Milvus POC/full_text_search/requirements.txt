@@ -1,0 +1,1 @@
+pymilvus[model]  # This installs pymilvus with model extras
