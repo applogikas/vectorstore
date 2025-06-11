@@ -1,11 +1,9 @@
 import weaviate
 import weaviate.classes as wvc
-from datetime import datetime
 import random
-import string
 
 # Configuration
-WEAVIATE_URL = "http://localhost:8080"  # Update this if your Weaviate instance is elsewhere
+WEAVIATE_URL = "http://localhost:8080"
 COLLECTION_NAME = "Person"
 
 def generate_ssn():
@@ -34,12 +32,10 @@ def generate_mock_data(num_records=5):
 
 def create_collection(client):
     """Create the Person collection with schema"""
-    try:
-        # Delete collection if it already exists
+    # Delete collection if it exists
+    if client.collections.exists(COLLECTION_NAME):
         client.collections.delete(COLLECTION_NAME)
         print(f"Deleted existing '{COLLECTION_NAME}' collection")
-    except:
-        print(f"No existing '{COLLECTION_NAME}' collection to delete")
     
     # Create new collection with schema
     client.collections.create(
@@ -65,8 +61,7 @@ def create_collection(client):
                 data_type=wvc.DataType.NUMBER,
                 description="Annual salary"
             )
-        ],
-        vectorizer_config=wvc.Configure.Vectorizer.text2vec_transformers()  # Using default vectorizer
+        ]
     )
     
     print(f"Created '{COLLECTION_NAME}' collection successfully")
@@ -75,12 +70,10 @@ def insert_data(client, data):
     """Insert mock data into the collection"""
     collection = client.collections.get(COLLECTION_NAME)
     
-    # Insert data with batch processing for efficiency
+    # Insert data with batch processing
     with collection.batch.dynamic() as batch:
         for person in data:
-            batch.add_object(
-                properties=person
-            )
+            batch.add_object(properties=person)
     
     print(f"Inserted {len(data)} records into '{COLLECTION_NAME}' collection")
 
@@ -108,41 +101,38 @@ def main():
     print("Weaviate Person Collection Setup")
     print("=" * 80)
     
-    try:
-        # Connect to Weaviate
-        print(f"Connecting to Weaviate at {WEAVIATE_URL}...")
-        client = weaviate.connect_to_local(
-            host="localhost",
-            port=8080,
-            grpc_port=50051  # Default gRPC port
-        )
-        
-        print("Connected successfully!")
-        
-        # Create collection
-        create_collection(client)
-        
-        # Generate mock data
-        print("\nGenerating mock data...")
-        mock_data = generate_mock_data(5)
-        
-        # Display generated data
-        print("\nGenerated mock data:")
-        for i, person in enumerate(mock_data, 1):
-            print(f"{i}. {person}")
-        
-        # Insert data
-        print("\nInserting data into Weaviate...")
-        insert_data(client, mock_data)
-        
-        # Query to verify
-        query_data(client)
-        
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        client.close()
-        print("\nConnection closed.")
+    # Connect to Weaviate
+    print(f"Connecting to Weaviate at {WEAVIATE_URL}...")
+    client = weaviate.connect_to_local(
+        host="localhost",
+        port=8080,
+        grpc_port=50051
+    )
+    
+    print("Connected successfully!")
+    
+    # Create collection
+    create_collection(client)
+    
+    # Generate mock data
+    print("\nGenerating mock data...")
+    mock_data = generate_mock_data(5)
+    
+    # Display generated data
+    print("\nGenerated mock data:")
+    for i, person in enumerate(mock_data, 1):
+        print(f"{i}. {person}")
+    
+    # Insert data
+    print("\nInserting data into Weaviate...")
+    insert_data(client, mock_data)
+    
+    # Query to verify
+    query_data(client)
+    
+    # Close connection
+    client.close()
+    print("\nConnection closed.")
 
 if __name__ == "__main__":
     main()
