@@ -1,5 +1,4 @@
 import weaviate
-import weaviate.classes as wvc
 import random
 
 # Configuration
@@ -33,81 +32,85 @@ def generate_mock_data(num_records=5):
 def create_collection(client):
     """Create the Person collection with schema"""
     # Delete collection if it exists
-    if client.collections.exists(COLLECTION_NAME):
-        client.collections.delete(COLLECTION_NAME)
-        print(f"Deleted existing '{COLLECTION_NAME}' collection")
+    client.schema.delete_class(COLLECTION_NAME)
+    print(f"Deleted existing '{COLLECTION_NAME}' collection (if it existed)")
     
-    # Create new collection with schema
-    client.collections.create(
-        name=COLLECTION_NAME,
-        properties=[
-            wvc.Property(
-                name="name",
-                data_type=wvc.DataType.TEXT,
-                description="Person's full name"
-            ),
-            wvc.Property(
-                name="ssn",
-                data_type=wvc.DataType.TEXT,
-                description="Social Security Number"
-            ),
-            wvc.Property(
-                name="age",
-                data_type=wvc.DataType.INT,
-                description="Person's age"
-            ),
-            wvc.Property(
-                name="salary",
-                data_type=wvc.DataType.NUMBER,
-                description="Annual salary"
-            )
+    # Define schema
+    class_schema = {
+        "class": COLLECTION_NAME,
+        "properties": [
+            {
+                "name": "name",
+                "dataType": ["text"],
+                "description": "Person's full name"
+            },
+            {
+                "name": "ssn",
+                "dataType": ["text"],
+                "description": "Social Security Number"
+            },
+            {
+                "name": "age",
+                "dataType": ["int"],
+                "description": "Person's age"
+            },
+            {
+                "name": "salary",
+                "dataType": ["number"],
+                "description": "Annual salary"
+            }
         ]
-    )
+    }
     
+    # Create collection
+    client.schema.create_class(class_schema)
     print(f"Created '{COLLECTION_NAME}' collection successfully")
 
 def insert_data(client, data):
     """Insert mock data into the collection"""
-    collection = client.collections.get(COLLECTION_NAME)
+    # Configure batch
+    client.batch.configure(batch_size=100)
     
     # Insert data with batch processing
-    with collection.batch.dynamic() as batch:
+    with client.batch as batch:
         for person in data:
-            batch.add_object(properties=person)
+            batch.add_data_object(
+                data_object=person,
+                class_name=COLLECTION_NAME
+            )
     
     print(f"Inserted {len(data)} records into '{COLLECTION_NAME}' collection")
 
 def query_data(client):
     """Query and display all data from the collection"""
-    collection = client.collections.get(COLLECTION_NAME)
-    
-    # Get all objects
-    response = collection.query.fetch_objects(limit=10)
+    # Query all objects
+    results = (
+        client.query
+        .get(COLLECTION_NAME, ["name", "ssn", "age", "salary"])
+        .with_limit(10)
+        .do()
+    )
     
     print(f"\nQuerying all records from '{COLLECTION_NAME}' collection:")
     print("-" * 80)
     
-    for i, obj in enumerate(response.objects, 1):
+    objects = results["data"]["Get"][COLLECTION_NAME]
+    for i, obj in enumerate(objects, 1):
         print(f"Record {i}:")
-        print(f"  Name: {obj.properties['name']}")
-        print(f"  SSN: {obj.properties['ssn']}")
-        print(f"  Age: {obj.properties['age']}")
-        print(f"  Salary: ${obj.properties['salary']:,.2f}")
-        print(f"  UUID: {obj.uuid}")
+        print(f"  Name: {obj['name']}")
+        print(f"  SSN: {obj['ssn']}")
+        print(f"  Age: {obj['age']}")
+        print(f"  Salary: ${obj['salary']:,.2f}")
         print()
 
 def main():
     """Main execution function"""
-    print("Weaviate Person Collection Setup")
+    print("Weaviate Person Collection Setup (v3 Client)")
     print("=" * 80)
     
     # Connect to Weaviate
     print(f"Connecting to Weaviate at {WEAVIATE_URL}...")
-    client = weaviate.connect_to_local(
-        host="localhost",
-        port=8080,
-        grpc_port=50051
-    )
+    client = weaviate.Client(WEAVIATE_URL)
     
     print("Connected successfully!")
     
@@ -130,9 +133,7 @@ def main():
     # Query to verify
     query_data(client)
     
-    # Close connection
-    client.close()
-    print("\nConnection closed.")
+    print("\nDone!")
 
 if __name__ == "__main__":
     main()
