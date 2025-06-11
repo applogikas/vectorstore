@@ -1,0 +1,148 @@
+import weaviate
+import weaviate.classes as wvc
+from datetime import datetime
+import random
+import string
+
+# Configuration
+WEAVIATE_URL = "http://localhost:8080"  # Update this if your Weaviate instance is elsewhere
+COLLECTION_NAME = "Person"
+
+def generate_ssn():
+    """Generate a mock SSN in format XXX-XX-XXXX"""
+    area = random.randint(100, 999)
+    group = random.randint(10, 99)
+    serial = random.randint(1000, 9999)
+    return f"{area}-{group}-{serial}"
+
+def generate_mock_data(num_records=5):
+    """Generate mock person data"""
+    first_names = ["John", "Jane", "Michael", "Sarah", "David", "Emma", "Robert", "Lisa", "James", "Mary"]
+    last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez"]
+    
+    mock_data = []
+    for i in range(num_records):
+        person = {
+            "name": f"{random.choice(first_names)} {random.choice(last_names)}",
+            "ssn": generate_ssn(),
+            "age": random.randint(22, 65),
+            "salary": round(random.uniform(30000, 150000), 2)
+        }
+        mock_data.append(person)
+    
+    return mock_data
+
+def create_collection(client):
+    """Create the Person collection with schema"""
+    try:
+        # Delete collection if it already exists
+        client.collections.delete(COLLECTION_NAME)
+        print(f"Deleted existing '{COLLECTION_NAME}' collection")
+    except:
+        print(f"No existing '{COLLECTION_NAME}' collection to delete")
+    
+    # Create new collection with schema
+    client.collections.create(
+        name=COLLECTION_NAME,
+        properties=[
+            wvc.Property(
+                name="name",
+                data_type=wvc.DataType.TEXT,
+                description="Person's full name"
+            ),
+            wvc.Property(
+                name="ssn",
+                data_type=wvc.DataType.TEXT,
+                description="Social Security Number"
+            ),
+            wvc.Property(
+                name="age",
+                data_type=wvc.DataType.INT,
+                description="Person's age"
+            ),
+            wvc.Property(
+                name="salary",
+                data_type=wvc.DataType.NUMBER,
+                description="Annual salary"
+            )
+        ],
+        vectorizer_config=wvc.Configure.Vectorizer.text2vec_transformers()  # Using default vectorizer
+    )
+    
+    print(f"Created '{COLLECTION_NAME}' collection successfully")
+
+def insert_data(client, data):
+    """Insert mock data into the collection"""
+    collection = client.collections.get(COLLECTION_NAME)
+    
+    # Insert data with batch processing for efficiency
+    with collection.batch.dynamic() as batch:
+        for person in data:
+            batch.add_object(
+                properties=person
+            )
+    
+    print(f"Inserted {len(data)} records into '{COLLECTION_NAME}' collection")
+
+def query_data(client):
+    """Query and display all data from the collection"""
+    collection = client.collections.get(COLLECTION_NAME)
+    
+    # Get all objects
+    response = collection.query.fetch_objects(limit=10)
+    
+    print(f"\nQuerying all records from '{COLLECTION_NAME}' collection:")
+    print("-" * 80)
+    
+    for i, obj in enumerate(response.objects, 1):
+        print(f"Record {i}:")
+        print(f"  Name: {obj.properties['name']}")
+        print(f"  SSN: {obj.properties['ssn']}")
+        print(f"  Age: {obj.properties['age']}")
+        print(f"  Salary: ${obj.properties['salary']:,.2f}")
+        print(f"  UUID: {obj.uuid}")
+        print()
+
+def main():
+    """Main execution function"""
+    print("Weaviate Person Collection Setup")
+    print("=" * 80)
+    
+    try:
+        # Connect to Weaviate
+        print(f"Connecting to Weaviate at {WEAVIATE_URL}...")
+        client = weaviate.connect_to_local(
+            host="localhost",
+            port=8080,
+            grpc_port=50051  # Default gRPC port
+        )
+        
+        print("Connected successfully!")
+        
+        # Create collection
+        create_collection(client)
+        
+        # Generate mock data
+        print("\nGenerating mock data...")
+        mock_data = generate_mock_data(5)
+        
+        # Display generated data
+        print("\nGenerated mock data:")
+        for i, person in enumerate(mock_data, 1):
+            print(f"{i}. {person}")
+        
+        # Insert data
+        print("\nInserting data into Weaviate...")
+        insert_data(client, mock_data)
+        
+        # Query to verify
+        query_data(client)
+        
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        client.close()
+        print("\nConnection closed.")
+
+if __name__ == "__main__":
+    main()
